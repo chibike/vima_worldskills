@@ -1,0 +1,36 @@
+<launch>
+    <!-- Launch Robot Differential Driver -->
+    <!-- <node name="diff_drive_controller"> -->
+
+    <!-- Load the rover URDF model into the parameter server -->
+    <param name="robot_description" textfile="$(find vima_odometry)/model/rover_model.urdf"/>
+    
+    <!-- Start Gazebo with an empty world -->
+    <!-- <include file="$(find gazebo_ros)/launch/empty_world.launch"/> -->
+    
+    <!-- Start Gazebo with a 3D simulation world that matches the 2D map -->
+    <!-- <include file="$(find gazebo_ros)/launch/willowgarage_world.launch"/> -->
+    
+    <!-- Spawn a rover in Gazebo, taking the descrption from the parameter server -->
+    <!--<node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-param robot_description -urdf -model rover"/>-->
+    
+    <!-- Spawn the rover in a place where it is easy to localize it -->
+    <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-param robot_description -urdf -model rover -x 8 -y -8"/>
+    
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
+    
+    <!--Run the map server using a static map-->
+    <node name="map_server" pkg="map_server" type="map_server" args="$(find vima_odometry)/map/vima_map_yaml.yaml"/>
+    
+    <!-- Launch AMCL -->
+    <include file="$(find amcl)/examples/amcl_diff.launch"/>
+    
+    <!-- Launch Move Base -->
+    <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+        <rosparam file="$(find vima_odometry)/model/costmap_common_params.yaml" command="load" ns="global_costmap"/>
+        <rosparam file="$(find vima_odometry)/model/costmap_common_params.yaml" command="load" ns="local_costmap"/>
+        <rosparam file="$(find vima_odometry)/model/local_costmap_params.yaml" command="load"/>
+        <rosparam file="$(find vima_odometry)/model/global_costmap_params.yaml" command="load"/>
+        <rosparam file="$(find vima_odometry)/model/base_local_planner_params.yaml"/>
+    </node>
+</launch>

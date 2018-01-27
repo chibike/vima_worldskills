@@ -1,0 +1,12 @@
+<launch>
+	<master auto="start"/>
+
+	<!-- Include the minimal launch file -->
+	<include file="$(find vima_odometry)/launch/minimal.launch"/>
+
+	<!-- Start rountine_1 -->
+	<node pkg="vima_worldskills" type="rountine_1.py" name="task_manager"   output="screen">
+		<remap from="start_btn" to="vima_robot_base/start_btn"/>
+	</node>
+
+</launch>

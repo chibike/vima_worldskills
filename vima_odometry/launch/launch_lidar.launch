@@ -1,0 +1,6 @@
+<launch>
+	<!-- Launch Lazer Scanner -->
+	<node name="rplidarNode" pkg="rplidar_ros" type="rplidarNode" output="screen">
+		<param name="frame_id" type="string" value="robo_peak_link" />
+	</node>
+</launch>

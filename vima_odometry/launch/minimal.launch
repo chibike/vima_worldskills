@@ -1,0 +1,173 @@
+<launch>
+	<master auto="start"/>
+
+	<arg name="scan_topic"      value="scan"/> 
+	<arg name="initial_pose_x"  value="0.0"/>
+	<arg name="initial_pose_y"  value="0.0"/>
+	<arg name="initial_pose_a"  value="0.0"/>
+	<arg name="odom_frame_id"   value="odom"/>
+	<arg name="base_frame_id"   value="base_link"/>
+	<arg name="global_frame_id" value="map"/>
+	
+	<arg name="wheel_Kp"        value="100.0"/>
+	<arg name="wheel_Ki"        value="0.0"/>
+	<arg name="wheel_Kd"        value="0.0"/>
+	<arg name="wheel_max_power" value="100.0"/>
+	<arg name="wheel_min_power" value="-100.0"/>
+
+	<!-- <arg name="ticks_meter" value="1145.91559026"/> -->
+	<arg name="ticks_meter" value="1081.052444"/>
+	<arg name="base_width"  value="0.265"/>
+	<arg name="encoder_min" value="-65535"/>
+	<arg name="encoder_max" value="65535"/>
+
+	<!-- Set Motor Parameters -->
+	<param name="ticks_meter"   type="double" value="$(arg ticks_meter)"/>
+	<param name="base_width"    type="double" value="$(arg base_width)"/>
+	<param name="base_frame_id" type="string" value="$(arg base_frame_id)"/>
+	<param name="odom_frame_id" type="string" value="$(arg odom_frame_id)"/>
+	<param name="encoder_min"   type="int"    value="$(arg encoder_min)"/>
+	<param name="encoder_max"   type="int"    value="$(arg encoder_max)"/>
+
+	<!-- Set Motor Power Boundaries -->
+	<param name="out_min" type="double" value="$(arg wheel_min_power)"/>
+	<param name="out_max" type="double" value="$(arg wheel_max_power)"/>
+
+	<param name="base_frame" type="string" value="$(arg base_frame_id)"/>
+
+	<!-- Load the robot's URDF model into the parameter server -->
+    <param name="robot_description" textfile="$(find vima_odometry)/model/rover_model.urdf"/>
+
+	<!-- Launch Robot Drivers -->
+	<node pkg="vima_odometry" type="robot_base.py" name="vima_robot_base">
+		<!-- Move topic to its namespace -->
+		<remap from="battery_voltage" to="vima_robot_base/battery_voltage"/>
+		<remap from="lmotor_current"  to="vima_robot_base/lmotor_current"/>
+		<remap from="rmotor_current"  to="vima_robot_base/rmotor_current"/>
+		<remap from="start_btn"       to="vima_robot_base/start_btn"/>
+		<remap from="twist"           to="vima_robot_base/cmd_vel"/>
+		
+		<!-- Set Publish Rate -->
+		<rosparam param="rate">10</rosparam>
+	</node>
+
+	<!-- Launch left and right wheel PID Controllers -->
+	<node pkg="vima_odometry" type="pid_velocity.py" name="lpid_velocity"  output="screen">
+		<remap from="wheel"         to="lwheel"/>
+		<remap from="motor_cmd"     to="lmotor_cmd"/>
+		<remap from="wheel_vtarget" to="lwheel_vtarget"/>
+		<remap from="wheel_vel"     to="lwheel_vel"/>
+		
+		<param name="Kp" type="double" value="$(arg wheel_Kp)"/>
+		<param name="Ki" type="double" value="$(arg wheel_Ki)"/>
+		<param name="Kd" type="double" value="$(arg wheel_Kd)"/>
+		
+		<rosparam param="rate">10</rosparam>
+		<rosparam param="timeout_ticks">4</rosparam>
+		<rosparam param="rolling_pts">5</rosparam>
+		
+		<param name="out_min" type="double" value="$(arg encoder_min)"/>
+		<param name="out_max" type="double" value="$(arg encoder_max)"/>
+	</node>
+	
+	<node pkg="vima_odometry" type="pid_velocity.py" name="rpid_velocity"  output="screen">
+		<remap from="wheel"         to="rwheel"/>
+		<remap from="motor_cmd"     to="rmotor_cmd"/>
+		<remap from="wheel_vtarget" to="rwheel_vtarget"/>
+		<remap from="wheel_vel"     to="rwheel_vel"/>
+		
+		<param name="Kp" type="double" value="$(arg wheel_Kp)"/>
+		<param name="Ki" type="double" value="$(arg wheel_Ki)"/>
+		<param name="Kd" type="double" value="$(arg wheel_Kd)"/>
+		
+		<rosparam param="rate">10</rosparam>
+		<rosparam param="timeout_ticks">4</rosparam>
+		<rosparam param="rolling_pts">5</rosparam>
+		
+		<param name="out_min" type="double" value="$(arg wheel_min_power)"/>
+		<param name="out_max" type="double" value="$(arg wheel_max_power)"/>
+	</node>
+
+	<!-- Launch robot differential drivers -->
+	<node pkg="vima_odometry" type="diff_tf.py" name="diff_controller">
+		<rosparam param="rate">10</rosparam>
+		
+		<param name="ticks_meter" type="double" value="$(arg ticks_meter)"/>
+		<param name="base_width" type="double" value="$(arg base_width)"/>
+		<param name="base_frame_id" type="string" value="$(arg base_frame_id)"/>
+		<param name="odom_frame_id" type="string" value="$(arg odom_frame_id)"/>
+		<param name="encoder_min" type="double" value="$(arg encoder_min)"/>
+		<param name="encoder_max" type="double" value="$(arg encoder_max)"/>
+	</node>
+
+	<node pkg="vima_odometry" type="twist_to_motors.py" name="twist_to_motors" output="screen">
+		<remap from="twist" to="vima_robot_base/cmd_vel"/>
+		
+		<param name="base_width" type="double" value="$(arg base_width)"/>
+	</node>
+
+	<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+
+	<!-- Launch Lazer Scanner -->
+	<node name="rplidarNode" pkg="rplidar_ros" type="rplidarNode" output="screen">
+		<param name="frame_id" type="string" value="robo_peak_link"/>
+	</node>
+
+	<!--Run the map server using a static map-->
+    <node name="map_server" pkg="map_server" type="map_server" args="$(find vima_odometry)/map/test_map_03.yaml"/>
+
+	<!-- Run AMCL -->
+	<node pkg="amcl" type="amcl" name="amcl" output="screen">
+		<!-- Publish scans from best pose at a max of 10 Hz -->
+		<param name="odom_model_type" type="string" value="diff"/>
+		<param name="odom_alpha5" type="double" value="0.1"/>
+		<param name="transform_tolerance" type="double" value="0.2" />
+		<param name="gui_publish_rate" type="double" value="10.0"/>
+		<param name="laser_max_beams" type="double" value="30"/>
+		<param name="min_particles" type="double" value="500"/>
+		<param name="max_particles" type="double" value="5000"/>
+		<param name="kld_err" type="double" value="0.05"/>
+		<param name="kld_z" type="double" value="0.99"/>
+		<param name="odom_alpha1" type="double" value="0.2"/>
+		<param name="odom_alpha2" type="double" value="0.2"/>
+		
+		<!-- translation std dev, m -->
+		<param name="odom_alpha3" value="0.8"/>
+		<param name="odom_alpha4" value="0.2"/>
+		<param name="laser_z_hit" value="0.5"/>
+		<param name="laser_z_short" value="0.05"/>
+		<param name="laser_z_max" value="0.05"/>
+		<param name="laser_z_rand" value="0.5"/>
+		<param name="laser_sigma_hit" value="0.2"/>
+		<param name="laser_lambda_short" value="0.1"/>
+		<param name="laser_lambda_short" value="0.1"/>
+		<param name="laser_model_type" value="likelihood_field"/>
+		
+		<!-- <param name="laser_model_type" value="beam"/> -->
+		<param name="laser_likelihood_max_dist" value="2.0"/>
+		<param name="update_min_d" value="0.2"/>
+		<param name="update_min_a" value="0.5"/>
+		<param name="odom_frame_id" value="$(arg odom_frame_id)"/>
+		<param name="resample_interval" value="1"/>
+		<param name="transform_tolerance" value="0.1"/>
+		<param name="recovery_alpha_slow" value="0.0"/>
+		<param name="recovery_alpha_fast" value="0.0"/>
+
+		<!-- Increase tolerance because the computer can get quite busy -->
+	    <param name="transform_tolerance" value="1.0"/>
+	    <param name="recovery_alpha_slow" value="0.0"/>
+	    <param name="recovery_alpha_fast" value="0.0"/>
+	    <param name="initial_pose_x" value="$(arg initial_pose_y)"/>
+	    <param name="initial_pose_y" value="$(arg initial_pose_y)"/>
+	    <param name="initial_pose_a" value="$(arg initial_pose_a)"/>
+	    <remap from="scan" to="$(arg scan_topic)"/>
+	</node>
+
+	<node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+	    <rosparam file="$(find vima_odometry)/model/costmap_common_params.yaml" command="load" ns="global_costmap" />
+	    <rosparam file="$(find vima_odometry)/model/costmap_common_params.yaml" command="load" ns="local_costmap" />
+	    <rosparam file="$(find vima_odometry)/model/local_costmap_params.yaml" command="load" />
+	    <rosparam file="$(find vima_odometry)/model/global_costmap_params.yaml" command="load" />
+	    <rosparam file="$(find vima_odometry)/model/base_local_planner_params.yaml" command="load" />
+	</node>
+</launch>

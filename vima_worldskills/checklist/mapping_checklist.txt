@@ -1,0 +1,8 @@
+--- MAPPING CHECKLIST ---
+
+1. ssh into vima_worldskills (using ssh odroid@192.169.100.100)
+2. run roslaunch vima_odometry gmapping.launch
+
+3. open a new terminal on your laptop
+4. setup your .bashrc
+5. running the start_mapping script (Note: your map location)
